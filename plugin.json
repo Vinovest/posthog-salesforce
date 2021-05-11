@@ -1,0 +1,61 @@
+{
+    "name": "Salesforce Export Plugin",
+    "url": "",
+    "description": "Export PostHog events into Salesforce",
+    "main": "src/index.ts",
+    "posthogVersion": ">= 1.24.0",
+    "config": [
+        {
+            "key": "salesforceHost",
+            "name": "Salesforce Service Host",
+            "type": "string",
+            "hint": "In the format of https://<org name>.my.salesforce.com",
+            "required": true
+        },
+        {
+            "key": "eventPath",
+            "name": "Path of the url where events will go to. No leading forward slash",
+            "type": "string",
+            "required": true
+        },
+        {
+            "key": "eventMethodType",
+            "name": "The type of method for the event url",
+            "default": "post",
+            "type": "string"
+        },
+        {
+            "key": "username",
+            "name": "Username",
+            "type": "string",
+            "required": true
+        },
+        {
+            "key": "password",
+            "name": "Password",
+            "type": "string",
+            "required": false,
+            "secret": true
+        },
+        {
+            "key": "consumerKey",
+            "name": "Consumer key",
+            "type": "string",
+            "required": true,
+            "secret": true
+        },
+        {
+            "key": "consumerSecret",
+            "name": "Consumer secret",
+            "type": "string",
+            "required": true,
+            "secret": true
+        },
+        {
+            "key": "eventsToInclude",
+            "name": "Events to include",
+            "type": "string",
+            "hint": "Comma separated list of events to include"
+        }
+    ]
+}

@@ -1,35 +1,118 @@
-import { Plugin } from '@posthog/plugin-scaffold'
-import type { RequestInfo, RequestInit, Response } from 'node-fetch'
+import { PluginMeta, PluginEvent } from '@posthog/plugin-scaffold'
+import axios from 'axios'
+import qs from 'qs'
 
-// fetch only declared, as it's provided as a plugin VM global
-declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
-
-// Some internal library function
-async function getRandomNumber(): Promise<number> {
-    return 4 // remove this line to get an actual random number from random.org – caution, rate limited to 10 events/s!
-    const response = await fetch(
-        'https://www.random.org/integers/?num=1&min=1&max=1000000000&col=1&base=10&format=plain&rnd=new'
-    )
-    const integer = parseInt(await response.text())
-    return integer
+const CACHE_TOKEN = 'salesforce-token'
+const CACHE_TTL = 60 * 60 * 5 // in seconds
+interface SalesforcePluginMeta extends PluginMeta {
+    config: {
+        salesforceHost: string
+        eventPath: string
+        eventMethodType: string
+        username: string
+        password: string
+        consumerKey: string
+        consumerSecret: string
+        eventsToInclude: string
+    }
 }
 
-// The famed Hello World plugin itself
-const helloWorld: Plugin = {
-    setupPlugin: async ({ config }) => {
-        console.log(`Setting up the plugin:\n${config.greeting}`)
-    },
-    processEvent: async (event, { config, cache }) => {
-        const counterValue = (await cache.get('greeting_counter', 0)) as number
-        cache.set('greeting_counter', counterValue + 1)
-        if (!event.properties) {
-            event.properties = {}
+function verifyConfig({ config }: SalesforcePluginMeta) {
+    if (!config.salesforceHost) {
+        throw new Error('host not provided!')
+    }
+    if (!config.username) {
+        throw new Error('Username not provided!')
+    }
+    if (!config.password) {
+        throw new Error('Password not provided!')
+    }
+    if (!config.eventsToInclude) {
+        throw new Error('No events to include!')
+    }
+}
+
+async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePluginMeta) {
+    const { config } = meta
+
+    const types = (config.eventsToInclude || '').split(',')
+
+    const sendEvents = events.filter((e) => types.includes(e.event))
+    if (sendEvents.length == 0) {
+        return
+    }
+
+    const token = await getToken(meta)
+
+    for (const e of sendEvents) {
+        if (!e.properties) {
+            continue
         }
-        event.properties['greeting'] = config.greeting
-        event.properties['greeting_counter'] = counterValue
-        event.properties['random_number'] = await getRandomNumber()
-        return event
-    },
+
+        await axios({
+            url: `${config.salesforceHost}/${config.eventPath}`,
+            method: config.eventMethodType as any,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
+            data: qs.stringify(e.properties),
+        })
+    }
 }
 
-export = helloWorld
+async function getToken(meta: SalesforcePluginMeta): Promise<string> {
+    const { cache } = meta
+    const token = await cache.get(CACHE_TOKEN, null)
+    if (token == null) {
+        await generateAndSetToken(meta)
+        return await getToken(meta)
+    }
+    return token as string
+}
+
+async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promise<boolean> {
+    const token = await cache.get(CACHE_TOKEN, null)
+    if (token == null) {
+        return false
+    }
+    // will see if we have access to the api
+    const response = await axios({
+        url: `${config.salesforceHost}/services/data`,
+        method: 'get',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
+    })
+    if (response.status < 200 || response.status > 299) {
+        throw new Error(`Unable to ping salesforce. Status code ${response.status}`)
+    }
+    return true
+}
+
+async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Promise<string> {
+    const { data } = await axios({
+        url: `${config.salesforceHost}/services/oauth2/token`,
+        method: 'post',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        data: qs.stringify({
+            grant_type: 'password',
+            client_id: config.consumerKey,
+            client_secret: config.consumerSecret,
+            username: config.username,
+            password: config.password,
+        }),
+    })
+
+    cache.set(CACHE_TOKEN, data.access_token, CACHE_TTL)
+    return data.access_token
+}
+
+export async function setupPlugin(meta: SalesforcePluginMeta) {
+    verifyConfig(meta)
+    if (canPingSalesforce(meta)) {
+        return
+    }
+    await generateAndSetToken(meta)
+}
+
+export async function processEventBatch(events: PluginEvent[], meta: SalesforcePluginMeta) {
+    await sendEventsToSalesforce(events, meta)
+
+    return events
+}

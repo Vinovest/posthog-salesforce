@@ -32,11 +32,11 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
 }
 
 async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePluginMeta) {
-    console.log("doing some event stuff")
+   
     const { config } = meta
 
     const types = (config.eventsToInclude || '').split(',')
-    console.log(types)
+   
     const sendEvents = events.filter((e) => types.includes(e.event))
     console.log(sendEvents)
     if (sendEvents.length == 0) {
@@ -53,7 +53,7 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
         await fetch(`${config.salesforceHost}/${config.eventPath}`,
         {   
             method: config.eventMethodType,
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(e.properties),
         })
     }
@@ -61,7 +61,9 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
 
 async function getToken(meta: SalesforcePluginMeta): Promise<string> {
     const { cache } = meta
+    console.log("grabbing the token")
     const token = await cache.get(CACHE_TOKEN, null)
+    console.log(token)
     if (token == null) {
         await generateAndSetToken(meta)
         return await getToken(meta)
@@ -78,7 +80,7 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
 
     const response = await fetch(`${config.salesforceHost}/services/data`,{
         method: 'get',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     })
 
     if (response.status < 200 || response.status > 299) {
@@ -90,7 +92,7 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
 async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Promise<string> {
     const response = await fetch(`${config.salesforceHost}/services/oauth2/token`, {
         method: 'post',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             grant_type: 'password',
             client_id: config.consumerKey,
@@ -99,7 +101,12 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
             password: config.password,
         }),
     })
+    if(response.status < 200 || response.status > 299) {
+        throw new Error(`Got bad response getting the token ${response.status}`)
+    }
+
     const body = await response.json()
+    console.log("generated the token", body)
     cache.set(CACHE_TOKEN, body.access_token, CACHE_TTL)
     return body.access_token
 }

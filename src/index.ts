@@ -42,11 +42,12 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
     }
 
     const token = await getToken(meta)
-
+    console.log("has a token ", token)
     for (const e of sendEvents) {
         if (!e.properties) {
             continue
         }   
+        console.log("sending the event")
         await fetch(`${config.salesforceHost}/${config.eventPath}`,
         {   
             method: config.eventMethodType,
@@ -104,8 +105,10 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 export async function setupPlugin(meta: SalesforcePluginMeta) {
     verifyConfig(meta)
     if (canPingSalesforce(meta)) {
+        console.log("has the token")
         return
     }
+    console.log("generatign the token")
     await generateAndSetToken(meta)
 }
 

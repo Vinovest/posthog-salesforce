@@ -74,23 +74,6 @@ async function getToken(meta: SalesforcePluginMeta): Promise<string> {
     return token as string
 }
 
-async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promise<boolean> {
-    const token = await cache.get(CACHE_TOKEN, null)
-    if (token == null) {
-        return false
-    }
-    // will see if we have access to the api
-    const response = await fetch(`${config.salesforceHost}/services/data`,{
-        method: 'get',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
-    })
-
-    if (response.status < 200 || response.status > 299) {
-        throw new Error(`Unable to ping salesforce. Status code ${response.status}`)
-    }
-    return true
-}
-
 async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Promise<string> {
     const details: Record<string,string> = {
         grant_type: 'password',
@@ -123,10 +106,7 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 
 export async function setupPlugin(meta: SalesforcePluginMeta) {
     verifyConfig(meta)
-    if (canPingSalesforce(meta)) {
-        return
-    }
-    await generateAndSetToken(meta)
+    await getToken(meta)
 }
 
 export async function processEventBatch(events: PluginEvent[], meta: SalesforcePluginMeta) {

@@ -5,7 +5,7 @@ import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
 
-const CACHE_TOKEN = 'SF_TOKEN'
+const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
 interface SalesforcePluginMeta extends PluginMeta {
     config: {
@@ -46,18 +46,21 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
         return
     }
     const token = await getToken(meta)
-    console.log("got a token", token)
+  
     for (const e of sendEvents) {
         if (!e.properties) {
             continue
         }   
-        console.log("Sending the evnet")
-        await fetch(`${config.salesforceHost}/${config.eventPath}`,
+        
+        const response = await fetch(`${config.salesforceHost}/${config.eventPath}`,
         {   
             method: config.eventMethodType,
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(e.properties),
         })
+        if(response.status /100 != 2) {
+            throw new Error(`Not a 200 response from event hook ${response.status}`)
+        }
     }
 }
 
@@ -81,7 +84,7 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
         method: 'get',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
     })
-    console.log(response.status)
+
     if (response.status < 200 || response.status > 299) {
         throw new Error(`Unable to ping salesforce. Status code ${response.status}`)
     }
@@ -110,7 +113,7 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
         body: formBody.join("&"),
     })
 
-    if(response.status < 200 || response.status > 299) {
+    if(response.status / 100 != 2) {
         throw new Error(`Got bad response getting the token ${response.status}`)
     }
     const body = await response.json()

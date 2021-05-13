@@ -32,15 +32,17 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
 }
 
 async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePluginMeta) {
+    console.log("doing some event stuff")
     const { config } = meta
 
     const types = (config.eventsToInclude || '').split(',')
-
+    console.log(types)
     const sendEvents = events.filter((e) => types.includes(e.event))
+    console.log(sendEvents)
     if (sendEvents.length == 0) {
         return
     }
-
+    console.log("going to get the token")
     const token = await getToken(meta)
     console.log("has a token ", token)
     for (const e of sendEvents) {

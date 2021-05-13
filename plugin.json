@@ -21,7 +21,7 @@
         {
             "key": "eventMethodType",
             "name": "The type of method for the event url",
-            "default": "post",
+            "default": "POST",
             "type": "string"
         },
         {

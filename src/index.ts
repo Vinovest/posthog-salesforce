@@ -1,4 +1,4 @@
-import { PluginMeta, PluginEvent } from '@posthog/plugin-scaffold'
+import { PluginMeta, PluginEvent, CacheExtension } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 
 // fetch only declared, as it's provided as a plugin VM global
@@ -8,6 +8,7 @@ declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
 interface SalesforcePluginMeta extends PluginMeta {
+    cache: CacheExtension,
     config: {
         salesforceHost: string
         eventPath: string
@@ -35,32 +36,28 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
     }
 }
 
-async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePluginMeta) {
-   
+async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginMeta) {
+
     const { config } = meta
 
     const types = (config.eventsToInclude || '').split(',')
-   
-    const sendEvents = events.filter((e) => types.includes(e.event))
-    if (sendEvents.length == 0) {
+
+    if (!types.includes(event.event) || !event.properties) {
         return
     }
+
     const token = await getToken(meta)
-  
-    for (const e of sendEvents) {
-        if (!e.properties) {
-            continue
-        }   
-        
-        const response = await fetch(`${config.salesforceHost}/${config.eventPath}`,
-        {   
+
+    const response = await fetch(
+        `${config.salesforceHost}/${config.eventPath}`,
+        {
             method: config.eventMethodType,
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(e.properties),
-        })
-        if(response.status /100 != 2) {
-            throw new Error(`Not a 200 response from event hook ${response.status}`)
+            body: JSON.stringify(event.properties),
         }
+    )
+    if (!statusOk(response)) {
+        throw new Error(`Not a 200 response from event hook ${response.status}`)
     }
 }
 
@@ -75,28 +72,28 @@ async function getToken(meta: SalesforcePluginMeta): Promise<string> {
 }
 
 async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Promise<string> {
-    const details: Record<string,string> = {
+    const details: Record<string, string> = {
         grant_type: 'password',
         client_id: config.consumerKey,
         client_secret: config.consumerSecret,
         username: config.username,
         password: config.password,
     };
-    
+
     let formBody = [];
     for (let property in details) {
-      var encodedKey = encodeURIComponent(property);
-      var encodedValue = encodeURIComponent(details[property]);
-      formBody.push(encodedKey + "=" + encodedValue);
+        var encodedKey = encodeURIComponent(property);
+        var encodedValue = encodeURIComponent(details[property]);
+        formBody.push(encodedKey + "=" + encodedValue);
     }
-    
+
     const response = await fetch(`${config.salesforceHost}/services/oauth2/token`, {
         method: 'post',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formBody.join("&"),
     })
 
-    if(response.status / 100 != 2) {
+    if (!statusOk(response)) {
         throw new Error(`Got bad response getting the token ${response.status}`)
     }
     const body = await response.json()
@@ -109,7 +106,10 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     await getToken(meta)
 }
 
-export async function processEventBatch(events: PluginEvent[], meta: SalesforcePluginMeta) {
-    await sendEventsToSalesforce(events, meta)
-    return events
+export async function onEvent(event: PluginEvent, meta: SalesforcePluginMeta) {
+    await sendEventToSalesforce(event, meta)
+}
+
+function statusOk(res: Response) {
+    return String(res.status)[0] === '2'
 }

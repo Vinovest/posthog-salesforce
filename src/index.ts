@@ -1,6 +1,5 @@
 import { PluginMeta, PluginEvent } from '@posthog/plugin-scaffold'
-import axios from 'axios'
-import qs from 'qs'
+import fetch from 'node-fetch'
 
 const CACHE_TOKEN = 'salesforce-token'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
@@ -47,13 +46,12 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
     for (const e of sendEvents) {
         if (!e.properties) {
             continue
-        }
-
-        await axios({
-            url: `${config.salesforceHost}/${config.eventPath}`,
-            method: config.eventMethodType as any,
+        }   
+        await fetch(`${config.salesforceHost}/${config.eventPath}`,
+        {   
+            method: config.eventMethodType,
             headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
-            data: qs.stringify(e.properties),
+            body: JSON.stringify(e.properties),
         })
     }
 }
@@ -74,11 +72,12 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
         return false
     }
     // will see if we have access to the api
-    const response = await axios({
-        url: `${config.salesforceHost}/services/data`,
+
+    const response = await fetch(`${config.salesforceHost}/services/data`,{
         method: 'get',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
     })
+
     if (response.status < 200 || response.status > 299) {
         throw new Error(`Unable to ping salesforce. Status code ${response.status}`)
     }
@@ -86,11 +85,10 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
 }
 
 async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Promise<string> {
-    const { data } = await axios({
-        url: `${config.salesforceHost}/services/oauth2/token`,
+    const response = await fetch(`${config.salesforceHost}/services/oauth2/token`, {
         method: 'post',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        data: qs.stringify({
+        body: JSON.stringify({
             grant_type: 'password',
             client_id: config.consumerKey,
             client_secret: config.consumerSecret,
@@ -98,9 +96,9 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
             password: config.password,
         }),
     })
-
-    cache.set(CACHE_TOKEN, data.access_token, CACHE_TTL)
-    return data.access_token
+    const body = await response.json()
+    cache.set(CACHE_TOKEN, body.access_token, CACHE_TTL)
+    return body.access_token
 }
 
 export async function setupPlugin(meta: SalesforcePluginMeta) {

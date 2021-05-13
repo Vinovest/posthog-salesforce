@@ -1,7 +1,7 @@
 import { PluginMeta, PluginEvent } from '@posthog/plugin-scaffold'
 import fetch from 'node-fetch'
 
-const CACHE_TOKEN = 'salesforce-token'
+const CACHE_TOKEN = 'SF_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
 interface SalesforcePluginMeta extends PluginMeta {
     config: {
@@ -38,7 +38,7 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
     const types = (config.eventsToInclude || '').split(',')
    
     const sendEvents = events.filter((e) => types.includes(e.event))
-    console.log(sendEvents)
+    console.log("Should send events", sendEvents)
     if (sendEvents.length == 0) {
         return
     }
@@ -82,7 +82,7 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
         method: 'get',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     })
-
+    console.log(response.status)
     if (response.status < 200 || response.status > 299) {
         throw new Error(`Unable to ping salesforce. Status code ${response.status}`)
     }

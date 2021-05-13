@@ -1,5 +1,9 @@
 import { PluginMeta, PluginEvent } from '@posthog/plugin-scaffold'
-import fetch from 'node-fetch'
+import type { RequestInfo, RequestInit, Response } from 'node-fetch'
+
+// fetch only declared, as it's provided as a plugin VM global
+declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
+
 
 const CACHE_TOKEN = 'SF_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
@@ -38,18 +42,14 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
     const types = (config.eventsToInclude || '').split(',')
    
     const sendEvents = events.filter((e) => types.includes(e.event))
-    console.log("Should send events", sendEvents)
     if (sendEvents.length == 0) {
         return
     }
-    console.log("going to get the token")
     const token = await getToken(meta)
-    console.log("has a token ", token)
     for (const e of sendEvents) {
         if (!e.properties) {
             continue
         }   
-        console.log("sending the event")
         await fetch(`${config.salesforceHost}/${config.eventPath}`,
         {   
             method: config.eventMethodType,
@@ -61,9 +61,7 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
 
 async function getToken(meta: SalesforcePluginMeta): Promise<string> {
     const { cache } = meta
-    console.log("grabbing the token")
     const token = await cache.get(CACHE_TOKEN, null)
-    console.log(token)
     if (token == null) {
         await generateAndSetToken(meta)
         return await getToken(meta)
@@ -77,10 +75,9 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
         return false
     }
     // will see if we have access to the api
-
     const response = await fetch(`${config.salesforceHost}/services/data`,{
         method: 'get',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${token}` },
     })
     console.log(response.status)
     if (response.status < 200 || response.status > 299) {
@@ -90,23 +87,31 @@ async function canPingSalesforce({ cache, config }: SalesforcePluginMeta): Promi
 }
 
 async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Promise<string> {
+    const details: Record<string,string> = {
+        grant_type: 'password',
+        client_id: config.consumerKey,
+        client_secret: config.consumerSecret,
+        username: config.username,
+        password: config.password,
+    };
+    
+    let formBody = [];
+    for (let property in details) {
+      var encodedKey = encodeURIComponent(property);
+      var encodedValue = encodeURIComponent(details[property]);
+      formBody.push(encodedKey + "=" + encodedValue);
+    }
+    
     const response = await fetch(`${config.salesforceHost}/services/oauth2/token`, {
         method: 'post',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            grant_type: 'password',
-            client_id: config.consumerKey,
-            client_secret: config.consumerSecret,
-            username: config.username,
-            password: config.password,
-        }),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formBody.join("&"),
     })
+
     if(response.status < 200 || response.status > 299) {
         throw new Error(`Got bad response getting the token ${response.status}`)
     }
-
     const body = await response.json()
-    console.log("generated the token", body)
     cache.set(CACHE_TOKEN, body.access_token, CACHE_TTL)
     return body.access_token
 }
@@ -114,15 +119,12 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 export async function setupPlugin(meta: SalesforcePluginMeta) {
     verifyConfig(meta)
     if (canPingSalesforce(meta)) {
-        console.log("has the token")
         return
     }
-    console.log("generatign the token")
     await generateAndSetToken(meta)
 }
 
 export async function processEventBatch(events: PluginEvent[], meta: SalesforcePluginMeta) {
     await sendEventsToSalesforce(events, meta)
-
     return events
 }

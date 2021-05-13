@@ -46,10 +46,12 @@ async function sendEventsToSalesforce(events: PluginEvent[], meta: SalesforcePlu
         return
     }
     const token = await getToken(meta)
+    console.log("got a token", token)
     for (const e of sendEvents) {
         if (!e.properties) {
             continue
         }   
+        console.log("Sending the evnet")
         await fetch(`${config.salesforceHost}/${config.eventPath}`,
         {   
             method: config.eventMethodType,

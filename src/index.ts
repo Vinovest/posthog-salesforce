@@ -1,6 +1,6 @@
 import { PluginMeta, PluginEvent, CacheExtension } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
-
+import url from 'url';
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
@@ -25,6 +25,12 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
     if (!config.salesforceHost) {
         throw new Error('host not provided!')
     }
+
+    const parsed = url.parse(config.salesforceHost)
+    if (!/(.+).my.salesforce.com$/.test(parsed.host as string)) {
+        throw new Error('Invalid salesforce host')
+    }
+
     if (!config.username) {
         throw new Error('Username not provided!')
     }

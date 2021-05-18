@@ -1,5 +1,7 @@
 import { PluginMeta, PluginEvent, CacheExtension } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
+import { createBuffer } from '@posthog/plugin-contrib'
+
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
@@ -17,6 +19,9 @@ interface SalesforcePluginMeta extends PluginMeta {
         consumerKey: string
         consumerSecret: string
         eventsToInclude: string
+    },
+    global: {
+        buffer: ReturnType<typeof createBuffer>
     }
 }
 
@@ -108,12 +113,28 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 export async function setupPlugin(meta: SalesforcePluginMeta) {
     verifyConfig(meta)
     await getToken(meta)
+    const { global } = meta
+    global.buffer = createBuffer({
+        limit: 1024 * 1024, // 1 MB
+        timeoutSeconds: 1,
+        onFlush: async (events) => {
+            for (const event of events) {
+                await sendEventToSalesforce(event, meta)
+            }
+        },
+    })
 }
 
-export async function onEvent(event: PluginEvent, meta: SalesforcePluginMeta) {
-    await sendEventToSalesforce(event, meta)
+export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMeta) {
+    const eventSize = JSON.stringify(event).length
+    global.buffer.add(event, eventSize)
+}
+
+export function teardownPlugin({ global }: SalesforcePluginMeta) {
+    global.buffer.flush()
 }
 
 function statusOk(res: Response) {
     return String(res.status)[0] === '2'
 }
+

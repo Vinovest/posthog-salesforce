@@ -66,7 +66,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
         }
     )
     if (!statusOk(response)) {
-        throw new Error(`Not a 200 response from event hook ${response.status}`)
+        throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
     }
 }
 

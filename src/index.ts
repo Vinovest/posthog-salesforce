@@ -5,6 +5,10 @@ import { createBuffer } from '@posthog/plugin-contrib'
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
+export const metrics = {
+    'total_requests': 'sum',
+    'errors': 'sum'
+}
 
 const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
@@ -47,7 +51,7 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
 
 async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginMeta) {
 
-    const { config } = meta
+    const { config, metrics } = meta
 
     const types = (config.eventsToInclude || '').split(',')
 
@@ -57,6 +61,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
 
     const token = await getToken(meta)
 
+    metrics.total_requests.increment(1)
     const response = await fetch(
         `${config.salesforceHost}/${config.eventPath}`,
         {
@@ -66,6 +71,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
         }
     )
     if (!statusOk(response)) {
+        metrics.errors.increment(1)
         throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
     }
 }

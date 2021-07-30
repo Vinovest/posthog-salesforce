@@ -1,6 +1,7 @@
 import { PluginMeta, PluginEvent, CacheExtension } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
+import { RetryError } from '@posthog/plugin-scaffold'
 
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
@@ -118,7 +119,11 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 
 export async function setupPlugin(meta: SalesforcePluginMeta) {
     verifyConfig(meta)
-    await getToken(meta)
+    try{ 
+        await getToken(meta)
+    } catch {
+        throw new RetryError('Service is down, retry later')
+    }
     const { global } = meta
     global.buffer = createBuffer({
         limit: 1024 * 1024, // 1 MB

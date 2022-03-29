@@ -139,10 +139,10 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     const { global } = meta
     global.buffer = createBuffer({
         limit: 1024 * 1024, // 1 MB
-        timeoutSeconds: 1,
+        timeoutSeconds: 2,
         onFlush: async (events) => {
             for (const event of events) {
-                await sendEventToSalesforce(event, meta)
+                await jobs.sendEventToSalesforce(event, meta)
             }
         },
     })

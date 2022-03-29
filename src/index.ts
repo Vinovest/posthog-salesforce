@@ -1,7 +1,6 @@
-import { PluginMeta, PluginEvent, CacheExtension } from '@posthog/plugin-scaffold'
+import { PluginEvent, CacheExtension, Meta } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
-import { RetryError } from '@posthog/plugin-scaffold'
 
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
@@ -13,7 +12,7 @@ export const metrics = {
 
 const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
-interface SalesforcePluginMeta extends PluginMeta {
+interface SalesforcePluginMeta extends Meta {
     cache: CacheExtension
     config: {
         salesforceHost: string
@@ -51,6 +50,9 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
     }
 }
 
+export const jobs = {
+    sendEventToSalesforce,
+}
 async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginMeta) {
     const { config, metrics } = meta
 
@@ -125,7 +127,7 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     try {
         await getToken(meta)
     } catch {
-        throw new RetryError('Service is down, retry later')
+        throw new Error('Service is down, retry later')
     }
     const { global } = meta
     global.buffer = createBuffer({
@@ -163,4 +165,3 @@ export function teardownPlugin({ global }: SalesforcePluginMeta) {
 function statusOk(res: Response) {
     return String(res.status)[0] === '2'
 }
-

@@ -64,6 +64,13 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
         ...event.properties?.record,
         country: event.properties?.$country_name,
         country_code: event.properties?.$country_code,
+        postal_code: event.properties?.$postal_code,
+        city: event.properties?.$city_name,
+        latitude: event.properties?.$latitude,
+        longitude: event.properties?.$longitude,
+        time_zone: event.properties?.$time_zone,
+        continent_name: event.properties?.$continent_name,
+        continent_code: event.properties?.$continent_code,
     }
 
     const eventWithCountryRecord = {

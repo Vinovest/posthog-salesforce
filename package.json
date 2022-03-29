@@ -15,7 +15,7 @@
     "license": "MIT",
     "scripts": {
         "release": "./node_modules/.bin/standard-version --no-verify -a",
-        "test": "jest src",
+        "test": "jest src --passWithNoTests",
         "build": "npm run clean && npm run compile",
         "clean": "rimraf dist/*",
         "purge": "rimraf dist node_modules",

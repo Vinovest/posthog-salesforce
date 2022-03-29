@@ -42,6 +42,7 @@
         "typescript": "^4.1.3"
     },
     "dependencies": {
+        "@maxmind/geoip2-node": "^3.4.0",
         "@posthog/plugin-contrib": "^0.0.5"
     }
 }

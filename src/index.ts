@@ -108,10 +108,10 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
         password: config.password,
     }
 
-    let formBody = []
-    for (let property in details) {
-        var encodedKey = encodeURIComponent(property)
-        var encodedValue = encodeURIComponent(details[property])
+    const formBody = []
+    for (const property in details) {
+        const encodedKey = encodeURIComponent(property)
+        const encodedValue = encodeURIComponent(details[property])
         formBody.push(encodedKey + '=' + encodedValue)
     }
 

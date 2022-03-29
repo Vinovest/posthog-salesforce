@@ -7,14 +7,14 @@ import { RetryError } from '@posthog/plugin-scaffold'
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
 export const metrics = {
-    'total_requests': 'sum',
-    'errors': 'sum'
+    total_requests: 'sum',
+    errors: 'sum',
 }
 
 const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
 interface SalesforcePluginMeta extends PluginMeta {
-    cache: CacheExtension,
+    cache: CacheExtension
     config: {
         salesforceHost: string
         eventPath: string
@@ -24,8 +24,9 @@ interface SalesforcePluginMeta extends PluginMeta {
         consumerKey: string
         consumerSecret: string
         eventsToInclude: string
-    },
+    }
     global: {
+        eventsToIncludeMap: Record<string, boolean>
         buffer: ReturnType<typeof createBuffer>
     }
 }
@@ -51,26 +52,28 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
 }
 
 async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginMeta) {
-
     const { config, metrics } = meta
-
-    const types = (config.eventsToInclude || '').split(',')
-
-    if (!types.includes(event.event) || !event.properties) {
-        return
-    }
 
     const token = await getToken(meta)
 
     metrics.total_requests.increment(1)
-    const response = await fetch(
-        `${config.salesforceHost}/${config.eventPath}`,
-        {
-            method: config.eventMethodType,
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(event.properties),
-        }
-    )
+
+    const recordWithLocationData = {
+        ...event.properties?.record,
+        country: event.properties?.$country_name,
+        country_code: event.properties?.$country_code,
+    }
+
+    const eventWithCountryRecord = {
+        ...event.properties,
+        record: recordWithLocationData,
+    }
+
+    const response = await fetch(`${config.salesforceHost}/${config.eventPath}`, {
+        method: config.eventMethodType,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(eventWithCountryRecord),
+    })
     if (!statusOk(response)) {
         metrics.errors.increment(1)
         throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
@@ -94,19 +97,19 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
         client_secret: config.consumerSecret,
         username: config.username,
         password: config.password,
-    };
+    }
 
-    let formBody = [];
+    let formBody = []
     for (let property in details) {
-        var encodedKey = encodeURIComponent(property);
-        var encodedValue = encodeURIComponent(details[property]);
-        formBody.push(encodedKey + "=" + encodedValue);
+        var encodedKey = encodeURIComponent(property)
+        var encodedValue = encodeURIComponent(details[property])
+        formBody.push(encodedKey + '=' + encodedValue)
     }
 
     const response = await fetch(`${config.salesforceHost}/services/oauth2/token`, {
         method: 'post',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formBody.join("&"),
+        body: formBody.join('&'),
     })
 
     if (!statusOk(response)) {
@@ -119,7 +122,7 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 
 export async function setupPlugin(meta: SalesforcePluginMeta) {
     verifyConfig(meta)
-    try{ 
+    try {
         await getToken(meta)
     } catch {
         throw new RetryError('Service is down, retry later')
@@ -136,8 +139,20 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     })
 }
 
-export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMeta) {
+export async function onEvent(event: PluginEvent, { global, config }: SalesforcePluginMeta) {
     const eventSize = JSON.stringify(event).length
+
+    const types = (config.eventsToInclude || '').split(',')
+
+    global.eventsToIncludeMap = types.reduce((eventMap, key) => {
+        eventMap[key] = true
+        return eventMap
+    }, {} as Record<string, boolean>)
+
+    if (!global.eventsToIncludeMap[event.event] || !event.properties) {
+        return
+    }
+
     global.buffer.add(event, eventSize)
 }
 

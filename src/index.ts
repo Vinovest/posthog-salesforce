@@ -137,7 +137,6 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     const debugLoggingOn = meta.config.debugLogging === 'debug logging on'
     logger = makeLogger(debugLoggingOn)
 
-
     try {
         await getToken(meta)
     } catch {
@@ -156,6 +155,9 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
 }
 
 export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMeta) {
+    if (!global.buffer) {
+        throw new Error(`there is no buffer. setup must have failed, cannot process event: ${event.event}`)
+    }
     const eventSize = JSON.stringify(event).length
     global.buffer.add(event, eventSize)
 }

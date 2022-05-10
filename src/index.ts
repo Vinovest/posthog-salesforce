@@ -1,7 +1,6 @@
-import { PluginMeta, PluginEvent, CacheExtension } from '@posthog/plugin-scaffold'
+import { PluginMeta, PluginEvent, CacheExtension, RetryError } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
-import { RetryError } from '@posthog/plugin-scaffold'
 
 interface Logger {
     error: typeof console.error
@@ -35,6 +34,7 @@ interface SalesforcePluginMeta extends PluginMeta {
         consumerKey: string
         consumerSecret: string
         eventsToInclude: string
+        debugLogging: String
     }
     global: {
         buffer: ReturnType<typeof createBuffer>
@@ -71,7 +71,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
             return
         }
 
-        console.debug('processing event: ', event?.event)
+        logger.debug('processing event: ', event?.event)
 
         const token = await getToken(meta)
 
@@ -86,7 +86,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
             throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
         }
     } catch (error) {
-        console.error('error while sending event to salesforce. event: ', event, ' the error was ', error)
+        logger.error('error while sending event to salesforce. event: ', event, ' the error was ', error)
         throw error
     }
 }
@@ -166,6 +166,6 @@ export function teardownPlugin({ global }: SalesforcePluginMeta) {
 
 async function statusOk(res: Response): Promise<boolean> {
     const body = await res?.text()
-    console.debug('testing response for whether it is "ok". has status: ', res.status, ' with body: ', body)
+    logger.debug('testing response for whether it is "ok". has status: ', res.status, ' with body: ', body)
     return String(res.status)[0] === '2'
 }

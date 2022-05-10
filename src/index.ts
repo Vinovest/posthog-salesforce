@@ -3,6 +3,22 @@ import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
 import { RetryError } from '@posthog/plugin-scaffold'
 
+interface Logger {
+    error: typeof console.error
+    log: typeof console.log
+    debug: typeof console.debug
+}
+
+const makeLogger = (debugLoggingOn: boolean): Logger => {
+    return {
+        error: console.error,
+        log: console.log,
+        debug: debugLoggingOn ? console.debug : () => {}
+    }
+}
+
+let logger = makeLogger(false)
+
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
@@ -64,6 +80,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(event.properties),
         })
+
         const isOk = await statusOk(response)
         if (!isOk) {
             throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
@@ -116,6 +133,11 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 
 export async function setupPlugin(meta: SalesforcePluginMeta) {
     verifyConfig(meta)
+
+    const debugLoggingOn = meta.config.debugLogging === 'debug logging on'
+    logger = makeLogger(debugLoggingOn)
+
+
     try {
         await getToken(meta)
     } catch {

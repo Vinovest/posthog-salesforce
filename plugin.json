@@ -62,7 +62,8 @@
             "name": "Enable debug logging",
             "type": "choice",
             "hint": "turn on debug logging to get _much_ more logging",
-            "choices": ["debug logging on", "debug logging off"]
+            "choices": ["debug logging on", "debug logging off"],
+            "default": "debug logging off"
         }
     ]
 }

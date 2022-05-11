@@ -12,7 +12,11 @@ const makeLogger = (debugLoggingOn: boolean): Logger => {
     return {
         error: console.error,
         log: console.log,
-        debug: debugLoggingOn ? console.debug : () => {}
+        debug: debugLoggingOn
+            ? console.debug
+            : () => {
+                  /* no-op debug logging */
+              },
     }
 }
 
@@ -32,7 +36,7 @@ interface SalesforcePluginMeta extends PluginMeta {
         consumerKey: string
         consumerSecret: string
         eventsToInclude: string
-        debugLogging: String
+        debugLogging: string
     }
     global: {
         buffer: ReturnType<typeof createBuffer>
@@ -135,7 +139,7 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
 
     const debugLoggingOn = meta.config.debugLogging === 'debug logging on'
     global.logger = makeLogger(debugLoggingOn)
-    
+
     verifyConfig(meta)
 
     try {
@@ -156,7 +160,7 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
 }
 
 export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMeta) {
-    if (!global.buffer) {   
+    if (!global.buffer) {
         throw new Error(`there is no buffer. setup must have failed, cannot process event: ${event.event}`)
     }
     const eventSize = JSON.stringify(event).length

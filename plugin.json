@@ -56,6 +56,14 @@
             "name": "Events to include",
             "type": "string",
             "hint": "Comma separated list of events to include"
+        },
+        {
+            "key": "debugLogging",
+            "name": "Enable debug logging",
+            "type": "choice",
+            "hint": "turn on debug logging to get _much_ more logging",
+            "choices": ["debug logging on", "debug logging off"],
+            "default": "debug logging off"
         }
     ]
 }

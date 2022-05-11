@@ -16,8 +16,6 @@ const makeLogger = (debugLoggingOn: boolean): Logger => {
     }
 }
 
-let logger = makeLogger(false)
-
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
@@ -38,6 +36,7 @@ interface SalesforcePluginMeta extends PluginMeta {
     }
     global: {
         buffer: ReturnType<typeof createBuffer>
+        logger: Logger
     }
 }
 
@@ -63,7 +62,7 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
 
 async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginMeta): Promise<void> {
     try {
-        const { config } = meta
+        const { config, global } = meta
 
         const types = (config.eventsToInclude || '').split(',')
 
@@ -71,7 +70,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
             return
         }
 
-        logger.debug('processing event: ', event?.event)
+        global.logger.debug('processing event: ', event?.event)
 
         const token = await getToken(meta)
 
@@ -81,12 +80,12 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
             body: JSON.stringify(event.properties),
         })
 
-        const isOk = await statusOk(response)
+        const isOk = await statusOk(response, global.logger)
         if (!isOk) {
             throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
         }
     } catch (error) {
-        logger.error('error while sending event to salesforce. event: ', event, ' the error was ', error)
+        meta.global.logger.error('error while sending event to salesforce. event: ', event, ' the error was ', error)
         throw error
     }
 }
@@ -101,7 +100,7 @@ async function getToken(meta: SalesforcePluginMeta): Promise<string> {
     return token as string
 }
 
-async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Promise<string> {
+async function generateAndSetToken({ config, cache, global }: SalesforcePluginMeta): Promise<string> {
     const details: Record<string, string> = {
         grant_type: 'password',
         client_id: config.consumerKey,
@@ -123,7 +122,7 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
         body: formBody.join('&'),
     })
 
-    if (!statusOk(response)) {
+    if (!statusOk(response, global.logger)) {
         throw new Error(`Got bad response getting the token ${response.status}`)
     }
     const body = await response.json()
@@ -132,17 +131,19 @@ async function generateAndSetToken({ config, cache }: SalesforcePluginMeta): Pro
 }
 
 export async function setupPlugin(meta: SalesforcePluginMeta) {
-    verifyConfig(meta)
+    const { global } = meta
 
     const debugLoggingOn = meta.config.debugLogging === 'debug logging on'
-    logger = makeLogger(debugLoggingOn)
+    global.logger = makeLogger(debugLoggingOn)
+    
+    verifyConfig(meta)
 
     try {
         await getToken(meta)
     } catch {
         throw new RetryError('Service is down, retry later')
     }
-    const { global } = meta
+
     global.buffer = createBuffer({
         limit: 1024 * 1024, // 1 MB
         timeoutSeconds: 1,
@@ -166,7 +167,7 @@ export function teardownPlugin({ global }: SalesforcePluginMeta) {
     global.buffer.flush()
 }
 
-async function statusOk(res: Response): Promise<boolean> {
+async function statusOk(res: Response, logger: Logger): Promise<boolean> {
     const body = await res?.text()
     logger.debug('testing response for whether it is "ok". has status: ', res.status, ' with body: ', body)
     return String(res.status)[0] === '2'

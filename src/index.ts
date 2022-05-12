@@ -173,6 +173,6 @@ export function teardownPlugin({ global }: SalesforcePluginMeta) {
 
 async function statusOk(res: Response, logger: Logger): Promise<boolean> {
     const body = await res?.text()
-    logger.debug('testing response for whether it is "ok". has status: ', res.status, ' with body: ', body)
+    logger.debug('testing response for whether it is "ok". request to URL: ', res.url, ' has status: ', res.status, '/' + res.statusText + ' with body: "', body, '"')
     return String(res.status)[0] === '2'
 }

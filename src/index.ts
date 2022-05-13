@@ -145,7 +145,8 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     try {
         await getToken(meta)
     } catch (error) {
-        throw new RetryError('Service is down, retry later. Error: ', error)
+        console.error('error in getToken', error)
+        throw new RetryError('Failed to getToken. cache or salesforce is unavailable')
     }
 
     global.buffer = createBuffer({
@@ -172,7 +173,6 @@ export function teardownPlugin({ global }: SalesforcePluginMeta) {
 }
 
 async function statusOk(res: Response, logger: Logger): Promise<boolean> {
-    const body = await res?.text()
-    logger.debug('testing response for whether it is "ok". has status: ', res.status, ' with body: ', body)
+    logger.debug('testing response for whether it is "ok". has status: ', res.status, ' debug: ', JSON.stringify(res))
     return String(res.status)[0] === '2'
 }

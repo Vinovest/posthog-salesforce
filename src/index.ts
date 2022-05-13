@@ -144,8 +144,8 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
 
     try {
         await getToken(meta)
-    } catch {
-        throw new RetryError('Service is down, retry later')
+    } catch (error) {
+        throw new RetryError('Service is down, retry later. Error: ', error)
     }
 
     global.buffer = createBuffer({

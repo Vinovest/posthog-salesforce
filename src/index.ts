@@ -145,7 +145,7 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     try {
         await getToken(meta)
     } catch (error) {
-        console.error('error in getToken', error)
+        global.logger.error('error in getToken', error)
         throw new RetryError('Failed to getToken. cache or salesforce is unavailable')
     }
 

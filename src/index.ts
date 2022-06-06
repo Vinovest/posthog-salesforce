@@ -81,7 +81,7 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
         const response = await fetch(`${config.salesforceHost}/${config.eventPath}`, {
             method: config.eventMethodType,
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(event.properties),
+            body: event.properties,
         })
 
         const isOk = await statusOk(response, global.logger)

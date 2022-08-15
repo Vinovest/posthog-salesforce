@@ -55,13 +55,13 @@
             "key": "eventsToInclude",
             "name": "Events to include",
             "type": "string",
-            "hint": "Comma separated list of events to include"
+            "hint": "Comma separated list of events to include. If not set, all events will be sent."
         },
         {
             "key": "propertiesToInclude",
-            "name": "Parameters to include",
+            "name": "Properties to include",
             "type": "string",
-            "hint": "Comma separated list of parameters to include"
+            "hint": "Comma separated list of properties to include. If not set, all properties of the event will be sent."
         },
         {
             "key": "debugLogging",

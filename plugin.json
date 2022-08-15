@@ -58,7 +58,7 @@
             "hint": "Comma separated list of events to include"
         },
         {
-            "key": "parametersToInclude",
+            "key": "propertiesToInclude",
             "name": "Parameters to include",
             "type": "string",
             "hint": "Comma separated list of parameters to include"

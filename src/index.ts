@@ -36,7 +36,7 @@ interface SalesforcePluginMeta extends PluginMeta {
         consumerKey: string
         consumerSecret: string
         eventsToInclude: string
-        parametersToInclude: string
+        propertiesToInclude: string
         debugLogging: string
     }
     global: {
@@ -185,14 +185,19 @@ function getProperties(event: PluginEvent, { config }: SalesforcePluginMeta): Pr
     // reducer there's no way the properties will be undefined
     const { properties } = event
 
-    if (!properties) return {}
-    if (!config.parametersToInclude) return properties
+    if (!properties) {
+        return {}
+    }
 
-    const allParameters = config.parametersToInclude.split(',')
+    if (!config.propertiesToInclude?.trim()) {
+        return properties
+    }
+
+    const allParameters = config.propertiesToInclude.split(',')
     const propertyKeys = Object.keys(properties)
 
     const availableParameters = allParameters.reduce<Record<string, any>>((acc, currentValue) => {
-        if (propertyKeys.includes(currentValue)) {
+        if (propertyKeys.includes(currentValue.trim())) {
             acc[currentValue] = properties[currentValue]
         }
 

@@ -58,6 +58,12 @@
             "hint": "Comma separated list of events to include"
         },
         {
+            "key": "parametersToInclude",
+            "name": "Parameters to include",
+            "type": "string",
+            "hint": "Comma separated list of parameters to include"
+        },
+        {
             "key": "debugLogging",
             "name": "Enable debug logging",
             "type": "choice",

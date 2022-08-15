@@ -1,7 +1,7 @@
 {
     "name": "Salesforce Export Plugin",
     "url": "",
-    "description": "Export PostHog events into Salesforce",
+    "description": "Relay PostHog events to Salesforce",
     "main": "src/index.ts",
     "posthogVersion": ">= 1.27.0",
     "config": [

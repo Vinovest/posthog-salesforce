@@ -69,12 +69,6 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
     try {
         const { config, global } = meta
 
-        const types = (config.eventsToInclude || '').split(',')
-
-        if (!types.includes(event.event) || !event.properties) {
-            return
-        }
-
         global.logger.debug('processing event: ', event?.event)
 
         const token = await getToken(meta)
@@ -162,10 +156,17 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     })
 }
 
-export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMeta) {
+export async function onEvent(event: PluginEvent, { global, config }: SalesforcePluginMeta) {
     if (!global.buffer) {
         throw new Error(`there is no buffer. setup must have failed, cannot process event: ${event.event}`)
     }
+
+    const types = (config.eventsToInclude || '').split(',')
+
+    if (!types.includes(event.event) || !event.properties) {
+        return
+    }
+
     const eventSize = JSON.stringify(event).length
     global.buffer.add(event, eventSize)
 }

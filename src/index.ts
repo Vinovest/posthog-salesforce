@@ -197,8 +197,10 @@ function getProperties(event: PluginEvent, { config }: SalesforcePluginMeta): Pr
     const propertyKeys = Object.keys(properties)
 
     const availableParameters = allParameters.reduce<Record<string, any>>((acc, currentValue) => {
-        if (propertyKeys.includes(currentValue.trim())) {
-            acc[currentValue] = properties[currentValue]
+        const trimmedKey = currentValue.trim()
+
+        if (propertyKeys.includes(trimmedKey)) {
+            acc[trimmedKey] = properties[trimmedKey]
         }
 
         return acc

@@ -55,7 +55,7 @@
             "key": "eventsToInclude",
             "name": "Events to include",
             "type": "string",
-            "hint": "Comma separated list of events to include. If not set, all events will be sent."
+            "hint": "Comma separated list of events to include"
         },
         {
             "key": "propertiesToInclude",

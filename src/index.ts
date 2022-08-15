@@ -1,4 +1,4 @@
-import { PluginMeta, PluginEvent, CacheExtension, RetryError } from '@posthog/plugin-scaffold'
+import { PluginMeta, PluginEvent, CacheExtension, RetryError, Properties } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
 
@@ -36,6 +36,7 @@ interface SalesforcePluginMeta extends PluginMeta {
         consumerKey: string
         consumerSecret: string
         eventsToInclude: string
+        parametersToInclude: string
         debugLogging: string
     }
     global: {
@@ -77,11 +78,12 @@ async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginM
         global.logger.debug('processing event: ', event?.event)
 
         const token = await getToken(meta)
+        const properties = getProperties(event, meta)
 
         const response = await fetch(`${config.salesforceHost}/${config.eventPath}`, {
             method: config.eventMethodType,
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(event.properties),
+            body: JSON.stringify(properties),
         })
 
         const isOk = await statusOk(response, global.logger)
@@ -175,4 +177,26 @@ export function teardownPlugin({ global }: SalesforcePluginMeta) {
 async function statusOk(res: Response, logger: Logger): Promise<boolean> {
     logger.debug('testing response for whether it is "ok". has status: ', res.status, ' debug: ', JSON.stringify(res))
     return String(res.status)[0] === '2'
+}
+
+function getProperties(event: PluginEvent, { config }: SalesforcePluginMeta): Properties {
+    // Spreading so the TypeScript compiler understands that in the
+    // reducer there's no way the properties will be undefined
+    const { properties } = event
+
+    if (!properties) return {}
+    if (!config.parametersToInclude) return properties
+
+    const allParameters = config.parametersToInclude.split(',')
+    const propertyKeys = Object.keys(properties)
+
+    const availableParameters = allParameters.reduce<Record<string, any>>((acc, currentValue) => {
+        if (propertyKeys.includes(currentValue)) {
+            acc[currentValue] = properties[currentValue]
+        }
+
+        return acc
+    }, {})
+
+    return availableParameters
 }

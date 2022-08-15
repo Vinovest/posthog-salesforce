@@ -1,6 +1,6 @@
 # Salesforce Plugin
 
-
+Relay PostHog events to Salesforce
 
 ## Questions?
 

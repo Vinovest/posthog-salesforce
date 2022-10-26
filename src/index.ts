@@ -23,7 +23,7 @@ const makeLogger = (debugLoggingOn: boolean): Logger => {
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
-const CACHE_TOKEN = 'SF_AUTH_TOKEN'
+const CACHE_TOKEN = 'SF_AUTH_TOKEN_'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
 interface SalesforcePluginMeta extends PluginMeta {
     cache: CacheExtension

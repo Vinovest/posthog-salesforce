@@ -6,18 +6,18 @@ describe('event sink mapping', () => {
     const invalidMapping: EventToSinkMapping = {
         a: {
             salesforcePath: 'something',
-            propertiesToInclude: [],
+            propertiesToInclude: '',
         },
         b: {
             salesforcePath: '',
-            propertiesToInclude: [],
+            propertiesToInclude: '',
         },
     }
 
     const validMapping: EventToSinkMapping = {
         $pageview: {
             salesforcePath: 'something',
-            propertiesToInclude: [],
+            propertiesToInclude: 'one,two,three',
         },
     }
 
@@ -73,7 +73,7 @@ describe('event sink mapping', () => {
             const mapping: EventToSinkMapping = {
                 $pageView: {
                     salesforcePath: 'something',
-                    propertiesToInclude: [],
+                    propertiesToInclude: '',
                 },
             }
             expect(() => {
@@ -118,7 +118,10 @@ describe('event sink mapping', () => {
                 eventEndpointMapping: '',
             }
             await sendEventToSink(
-                ({ event: '$pageview', properties: { my: 'properties' } } as unknown) as PluginEvent,
+                ({
+                    event: '$pageview',
+                    properties: { unwanted: 'excluded', two: 'includes' },
+                } as unknown) as PluginEvent,
                 validMapping,
                 ({
                     global: global,
@@ -128,7 +131,7 @@ describe('event sink mapping', () => {
                 async () => 'the bearer token'
             )
             expect(mockFetch).toHaveBeenCalledWith('https://example.io/something', {
-                body: '{"my":"properties"}',
+                body: '{"two":"includes"}',
                 headers: { Authorization: 'Bearer the bearer token', 'Content-Type': 'application/json' },
                 method: 'POST',
             })

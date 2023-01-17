@@ -1,13 +1,14 @@
 import { PluginEvent } from '@posthog/plugin-scaffold'
 import { SalesforcePluginConfig, SalesforcePluginMeta, statusOk } from '.'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
+import { filterProperties } from './propertyAllowList'
 
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
 export interface EventSink {
     salesforcePath: string
-    propertiesToInclude: string[]
+    propertiesToInclude: string
 }
 
 export type EventToSinkMapping = Record<string, EventSink>
@@ -55,7 +56,7 @@ export const sendEventToSink = async (
     token: () => Promise<string>
 ): Promise<void> => {
     const hasMappingForThisEvent = event.event in eventMapping
-    if (!hasMappingForThisEvent) {
+    if (!hasMappingForThisEvent || !event.properties) {
         return
     }
 
@@ -65,10 +66,11 @@ export const sendEventToSink = async (
     const eventSinkConfig = eventMapping[event.event]
     logger.debug('v2: processing event: ', event?.event, ' with config ', eventSinkConfig)
 
+    const propertyAllowList = eventSinkConfig.propertiesToInclude.split(',')
     const response = await fetch(`${config.salesforceHost}/${eventSinkConfig.salesforcePath}`, {
         method: config.eventMethodType,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify(event.properties),
+        body: JSON.stringify(filterProperties(event.properties, propertyAllowList)),
     })
 
     const isOk = await statusOk(response, logger)

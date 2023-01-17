@@ -1,8 +1,9 @@
-import { PluginMeta, PluginEvent, CacheExtension, RetryError } from '@posthog/plugin-scaffold'
+import { PluginMeta, PluginEvent, CacheExtension, RetryError, PluginInput } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
+import { parseEventSinkConfig, sendEventToSink, validateEventSinkConfig } from './eventSinkMapping'
 
-interface Logger {
+export interface Logger {
     error: typeof console.error
     log: typeof console.log
     debug: typeof console.debug
@@ -25,19 +26,23 @@ declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
 const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
-interface SalesforcePluginMeta extends PluginMeta {
+
+export interface SalesforcePluginConfig {
+    salesforceHost: string
+    eventPath: string
+    eventMethodType: string
+    username: string
+    password: string
+    consumerKey: string
+    consumerSecret: string
+    eventsToInclude: string
+    debugLogging: string
+    eventEndpointMapping: string // contains json or the empty string
+}
+
+export interface SalesforcePluginMeta extends PluginMeta {
     cache: CacheExtension
-    config: {
-        salesforceHost: string
-        eventPath: string
-        eventMethodType: string
-        username: string
-        password: string
-        consumerKey: string
-        consumerSecret: string
-        eventsToInclude: string
-        debugLogging: string
-    }
+    config: SalesforcePluginConfig
     global: {
         buffer: ReturnType<typeof createBuffer>
         logger: Logger
@@ -45,6 +50,10 @@ interface SalesforcePluginMeta extends PluginMeta {
 }
 
 function verifyConfig({ config }: SalesforcePluginMeta) {
+    const eventMapping = parseEventSinkConfig(config)
+
+    validateEventSinkConfig(eventMapping, config)
+
     if (!config.salesforceHost) {
         throw new Error('host not provided!')
     }
@@ -59,34 +68,38 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
     if (!config.password) {
         throw new Error('Password not provided!')
     }
-    if (!config.eventsToInclude) {
-        throw new Error('No events to include!')
-    }
 }
 
 async function sendEventToSalesforce(event: PluginEvent, meta: SalesforcePluginMeta): Promise<void> {
     try {
         const { config, global } = meta
 
-        const types = (config.eventsToInclude || '').split(',')
+        const eventMapping = parseEventSinkConfig(config)
 
-        if (!types.includes(event.event) || !event.properties) {
-            return
-        }
+        if (eventMapping !== null) {
+            sendEventToSink(event, eventMapping, meta, () => getToken(meta))
+        } else {
+            //maintain v1 behaviour unchanged otherwise
+            const types = (config.eventsToInclude || '').split(',')
 
-        global.logger.debug('processing event: ', event?.event)
+            if (!types.includes(event.event) || !event.properties) {
+                return
+            }
 
-        const token = await getToken(meta)
+            global.logger.debug('processing event: ', event?.event)
 
-        const response = await fetch(`${config.salesforceHost}/${config.eventPath}`, {
-            method: config.eventMethodType,
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(event.properties),
-        })
+            const token = await getToken(meta)
 
-        const isOk = await statusOk(response, global.logger)
-        if (!isOk) {
-            throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
+            const response = await fetch(`${config.salesforceHost}/${config.eventPath}`, {
+                method: config.eventMethodType,
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(event.properties),
+            })
+
+            const isOk = await statusOk(response, global.logger)
+            if (!isOk) {
+                throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
+            }
         }
     } catch (error) {
         meta.global.logger.error('error while sending event to salesforce. event: ', event, ' the error was ', error)
@@ -172,7 +185,7 @@ export function teardownPlugin({ global }: SalesforcePluginMeta) {
     global.buffer.flush()
 }
 
-async function statusOk(res: Response, logger: Logger): Promise<boolean> {
+export async function statusOk(res: Response, logger: Logger): Promise<boolean> {
     logger.debug('testing response for whether it is "ok". has status: ', res.status, ' debug: ', JSON.stringify(res))
     return String(res.status)[0] === '2'
 }

@@ -1,26 +1,57 @@
-# PostHog Plugin Advanced Kit: Hello World
+# PostHog SalesForce App
 
 [![npm package](https://img.shields.io/npm/v/posthog-plugin-hello-world?style=flat-square)](https://www.npmjs.com/package/posthog-plugin-hello-world)
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-This is an exemplary PostHog plugin. It adds property `"greeting"` to every event, with a configurable value (by default: `"Hello world!"`).
+This is a PostHog export app. Use it to send properties from selected events to SalesForce. For example to create a lead when a customer books a demo.
 
-Use it as a base for your own plugins!
+See `plugin/json` for definition of accepted config
 
-## Goodies included
+## All versions
 
--   TypeScript for best reliability and development experience
--   Jest for convenient testing
--   Prettier and ESLint for code style and best practices – both handled by pre-commit hooks
--   GitHub Actions set up to run code quality and functionality tests in pull requests, and also to publish a new npm release when the package version is incremented in `main` (the latter requires an automation type npm access token to be set with a repo secret `NPM_TOKEN`)
+In your config provide:
 
-Want to simply get started, without the above bloat? [PostHog Plugin Starter Kit](https://github.com/PostHog/posthog-plugin-starter-kit) should be just the right fit for you – only the essentials needed to get off the ground.
+* `salesforceHost` - e.g. https://salesforce.example.io
+* `username`
+* `password`
+* `consumerKey`
+* `consumerSecret`
+* `debugLogging` - to turn on or off verbose logging
 
-## Installation
+## Version 1
 
-1. Open PostHog.
-1. Head to the Plugins page from the sidebar.
-1. Either install Hello World from Available plugins, or install from URL using this repository's URL.
+The first version of this app takes config:
+
+* `eventsToInclude` 
+    - a comma separated string containing an event allow list. 
+    - any event in the list will be sent to SalesForce
+* `eventPath`
+    - the path to append to the salesForceHost to make up the API URL
+* `eventMethodType` - defaults to POST
+
+## Version 2
+
+Allows more flexibility on where to send events.
+
+For example:
+
+"user signed up" event -> send to Lead
+"insight analyzed" event -> send to Engagement
+
+This version takes JSON into a strong config field `eventEndpointMapping`
+
+This is a mapping/dictionary of event name to config object.
+
+```
+{
+    "user signed up": {salesforcePath: "Lead", propertiesToInclude: "name,email,company"}
+    "insight analyzed" event -> {salesforcePath: "Engagement", propertiesToInclude: "insight,user,duration"}
+}
+```
+
+Each config object has a `salesforcePath`. As with the top-level `eventPath` this is appended to the `salesforceHost` to generate the API to send the event to.
+
+And a `propertiesToInclude`. PostHog events can have a lot of properties. `propertiesToInclude` is a comman separated list of properties that should be sent to SalesForce. If the list is empty all properties are sent.
 
 ## Questions?
 

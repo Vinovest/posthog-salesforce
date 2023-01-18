@@ -1,25 +1,8 @@
-import { PluginMeta, PluginEvent, CacheExtension, RetryError, PluginInput } from '@posthog/plugin-scaffold'
+import { PluginEvent, CacheExtension, RetryError } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
 import { parseEventSinkConfig, sendEventToSink, validateEventSinkConfig } from './eventSinkMapping'
-
-export interface Logger {
-    error: typeof console.error
-    log: typeof console.log
-    debug: typeof console.debug
-}
-
-const makeLogger = (debugLoggingOn: boolean): Logger => {
-    return {
-        error: console.error,
-        log: console.log,
-        debug: debugLoggingOn
-            ? console.debug
-            : () => {
-                  /* no-op debug logging */
-              },
-    }
-}
+import { Logger, makeLogger } from './logger'
 
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
@@ -40,7 +23,7 @@ export interface SalesforcePluginConfig {
     eventEndpointMapping: string // contains json or the empty string
 }
 
-export interface SalesforcePluginMeta extends PluginMeta {
+export interface SalesforcePluginMeta {
     cache: CacheExtension
     config: SalesforcePluginConfig
     global: {
@@ -147,7 +130,7 @@ async function generateAndSetToken({ config, cache, global }: SalesforcePluginMe
     return body.access_token
 }
 
-export async function setupPlugin(meta: SalesforcePluginMeta) {
+export async function setupPlugin(meta: SalesforcePluginMeta): Promise<void> {
     const { global } = meta
 
     const debugLoggingOn = meta.config.debugLogging === 'debug logging on'
@@ -173,7 +156,7 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     })
 }
 
-export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMeta) {
+export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMeta): Promise<void> {
     if (!global.buffer) {
         throw new Error(`there is no buffer. setup must have failed, cannot process event: ${event.event}`)
     }
@@ -181,7 +164,7 @@ export async function onEvent(event: PluginEvent, { global }: SalesforcePluginMe
     global.buffer.add(event, eventSize)
 }
 
-export function teardownPlugin({ global }: SalesforcePluginMeta) {
+export function teardownPlugin({ global }: SalesforcePluginMeta): void {
     global.buffer.flush()
 }
 

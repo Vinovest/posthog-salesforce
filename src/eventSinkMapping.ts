@@ -32,7 +32,6 @@ export const validateEventSinkConfig = (
     if (eventMapping !== null) {
         Object.entries(eventMapping).map((entry) => {
             const eventSink = entry[1]
-            debugger
             if (eventSink.salesforcePath == null || eventSink.salesforcePath.trim() === '') {
                 throw new Error('You must provide a salesforce path for each mapping in config.eventEndpointMapping.')
             }

@@ -26,7 +26,7 @@
         "format:check": "prettier --check ."
     },
     "devDependencies": {
-        "@posthog/plugin-scaffold": "1.4.0",
+        "@posthog/plugin-scaffold": "1.4.1",
         "@types/jest": "^26.0.19",
         "@types/node-fetch": "^2.5.8",
         "@types/qs": "^6.9.6",

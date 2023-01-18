@@ -4,8 +4,6 @@
 
 This is a PostHog export app. Use it to send properties from selected events to SalesForce. For example to create a lead when a customer books a demo.
 
-See `plugin/json` for definition of accepted config
-
 ## All versions
 
 In your config provide:

@@ -10,23 +10,23 @@ See `plugin/json` for definition of accepted config
 
 In your config provide:
 
-* `salesforceHost` - e.g. https://salesforce.example.io
-* `username`
-* `password`
-* `consumerKey`
-* `consumerSecret`
-* `debugLogging` - to turn on or off verbose logging
+-   `salesforceHost` - e.g. https://salesforce.example.io
+-   `username`
+-   `password`
+-   `consumerKey`
+-   `consumerSecret`
+-   `debugLogging` - to turn on or off verbose logging
 
 ## Version 1
 
 The first version of this app takes config:
 
-* `eventsToInclude` 
-    - a comma separated string containing an event allow list. 
-    - any event in the list will be sent to SalesForce
-* `eventPath`
-    - the path to append to the salesForceHost to make up the API URL
-* `eventMethodType` - defaults to POST
+-   `eventsToInclude`
+    -   a comma separated string containing an event allow list.
+    -   any event in the list will be sent to SalesForce
+-   `eventPath`
+    -   the path to append to the salesForceHost to make up the API URL
+-   `eventMethodType` - defaults to POST
 
 ## Version 2
 

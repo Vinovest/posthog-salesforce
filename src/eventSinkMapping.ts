@@ -1,7 +1,7 @@
 import { PluginEvent } from '@posthog/plugin-scaffold'
 import { SalesforcePluginConfig, SalesforcePluginMeta, statusOk } from '.'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
-import { filterProperties } from './propertyAllowList'
+import { filterProperties, parsePropertyAllowList } from './propertyAllowList'
 
 // fetch only declared, as it's provided as a plugin VM global
 declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
@@ -66,7 +66,7 @@ export const sendEventToSink = async (
     const eventSinkConfig = eventMapping[event.event]
     logger.debug('v2: processing event: ', event?.event, ' with config ', eventSinkConfig)
 
-    const propertyAllowList = eventSinkConfig.propertiesToInclude.split(',')
+    const propertyAllowList = parsePropertyAllowList(eventSinkConfig.propertiesToInclude)
     const response = await fetch(`${config.salesforceHost}/${eventSinkConfig.salesforcePath}`, {
         method: config.eventMethodType,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },

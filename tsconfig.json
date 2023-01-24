@@ -9,7 +9,10 @@
         "noImplicitReturns": true,
         "noUnusedParameters": true,
         "esModuleInterop": true,
-        "noEmit": true
+        "noEmit": true,
+        "rootDir": "src",
+        "outDir": "dist",
     },
-    "exclude": ["**.test.ts"]
+    "include": ["**/**/*.ts"],
+    "exclude": ["**/**.test.ts", "dist"]
 }

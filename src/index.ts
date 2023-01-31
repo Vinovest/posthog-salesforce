@@ -1,4 +1,4 @@
-import { PluginMeta, PluginEvent, CacheExtension, RetryError } from '@posthog/plugin-scaffold'
+import { PluginEvent, CacheExtension, RetryError } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
 import { URL } from 'url'
@@ -26,26 +26,29 @@ declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
 const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
-interface SalesforcePluginMeta {
+
+export interface SalesforcePluginConfig {
+    salesforceHost: string
+    eventPath: string
+    eventMethodType: string
+    username: string
+    password: string
+    consumerKey: string
+    consumerSecret: string
+    eventsToInclude: string
+    debugLogging: string
+}
+
+export interface SalesforcePluginMeta {
     cache: CacheExtension
-    config: {
-        salesforceHost: string
-        eventPath: string
-        eventMethodType: string
-        username: string
-        password: string
-        consumerKey: string
-        consumerSecret: string
-        eventsToInclude: string
-        debugLogging: string
-    }
+    config: SalesforcePluginConfig
     global: {
         buffer: ReturnType<typeof createBuffer>
         logger: Logger
     }
 }
 
-function verifyConfig({ config }: SalesforcePluginMeta) {
+export function verifyConfig({ config }: SalesforcePluginMeta): void {
     if (!config.salesforceHost) {
         throw new Error('host not provided!')
     }
@@ -53,6 +56,9 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
     try {
         new URL(config.salesforceHost)
     } catch (error) {
+        throw new Error('host not a valid URL!')
+    }
+    if (!config.salesforceHost.startsWith('http')) {
         throw new Error('host not a valid URL!')
     }
 

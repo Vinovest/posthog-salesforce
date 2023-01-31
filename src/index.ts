@@ -1,6 +1,7 @@
 import { PluginMeta, PluginEvent, CacheExtension, RetryError } from '@posthog/plugin-scaffold'
 import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
+import { URL } from 'url'
 
 interface Logger {
     error: typeof console.error
@@ -25,7 +26,7 @@ declare function fetch(url: RequestInfo, init?: RequestInit): Promise<Response>
 
 const CACHE_TOKEN = 'SF_AUTH_TOKEN'
 const CACHE_TTL = 60 * 60 * 5 // in seconds
-interface SalesforcePluginMeta extends PluginMeta {
+interface SalesforcePluginMeta {
     cache: CacheExtension
     config: {
         salesforceHost: string
@@ -49,8 +50,10 @@ function verifyConfig({ config }: SalesforcePluginMeta) {
         throw new Error('host not provided!')
     }
 
-    if (!/https:\/\/(.+).my.salesforce.com$/.test(config.salesforceHost)) {
-        throw new Error('Invalid salesforce host')
+    try {
+        new URL(config.salesforceHost)
+    } catch (error) {
+        throw new Error('host not a valid URL!')
     }
 
     if (!config.username) {

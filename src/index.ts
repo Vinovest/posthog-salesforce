@@ -3,6 +3,26 @@ import type { RequestInfo, RequestInit, Response } from 'node-fetch'
 import { createBuffer } from '@posthog/plugin-contrib'
 import { URL } from 'url'
 
+export interface EventSink {
+    salesforcePath: string
+    propertiesToInclude: string
+    method: string
+}
+
+export type EventToSinkMapping = Record<string, EventSink>
+
+export const parseEventSinkConfig = (config: SalesforcePluginConfig): EventToSinkMapping | null => {
+    let eventMapping: EventToSinkMapping | null = null
+    if (config.eventEndpointMapping?.length > 0) {
+        try {
+            eventMapping = JSON.parse(config.eventEndpointMapping) as EventToSinkMapping
+        } catch (e) {
+            throw new Error('eventEndpointMapping must be an empty string or contain valid JSON!')
+        }
+    }
+    return eventMapping
+}
+
 interface Logger {
     error: typeof console.error
     log: typeof console.log
@@ -38,20 +58,55 @@ export interface SalesforcePluginConfig {
     eventsToInclude: string
     propertiesToInclude: string
     debugLogging: string
+    eventEndpointMapping: string
+}
+
+export interface SalesforcePluginGlobal {
+    buffer: ReturnType<typeof createBuffer>
+    logger: Logger
 }
 
 type SalesForcePlugin = Plugin<{
     cache: CacheExtension
     config: SalesforcePluginConfig
-    global: {
-        buffer: ReturnType<typeof createBuffer>
-        logger: Logger
-    }
+    global: SalesforcePluginGlobal
 }>
 
 export type SalesforcePluginMeta = PluginMeta<SalesForcePlugin>
 
+const validateEventSinkConfig = (config: SalesforcePluginConfig): void => {
+    const eventMapping = parseEventSinkConfig(config)
+
+    if (eventMapping !== null) {
+        Object.entries(eventMapping).map((entry) => {
+            const eventSink = entry[1]
+            if (eventSink.salesforcePath == null || eventSink.salesforcePath.trim() === '') {
+                throw new Error('You must provide a salesforce path for each mapping in config.eventEndpointMapping.')
+            }
+            if (eventSink.method == null || eventSink.method.trim() === '') {
+                throw new Error('You must provide a method for each mapping in config.eventEndpointMapping.')
+            }
+        })
+    } else {
+        // if no eventMapping is provided then we still need to receive eventsToInclude
+        if (!config.eventsToInclude) {
+            throw new Error('If you are not providing an eventEndpointMapping then you must provide events to include.')
+        }
+        if (!config.eventPath) {
+            throw new Error(
+                'If you are not providing an eventEndpointMapping then you must provide the salesforce path.'
+            )
+        }
+    }
+    // don't send v1 and v2 mapping
+    if (eventMapping !== null && !!config.eventsToInclude?.trim()) {
+        throw new Error('You should not provide both eventsToInclude and eventMapping.')
+    }
+}
+
 export function verifyConfig({ config }: SalesforcePluginMeta): void {
+    validateEventSinkConfig(config)
+
     if (!config.salesforceHost) {
         throw new Error('host not provided!')
     }
@@ -61,6 +116,7 @@ export function verifyConfig({ config }: SalesforcePluginMeta): void {
     } catch (error) {
         throw new Error('host not a valid URL!')
     }
+
     if (!config.salesforceHost.startsWith('http')) {
         throw new Error('host not a valid URL!')
     }
@@ -68,11 +124,34 @@ export function verifyConfig({ config }: SalesforcePluginMeta): void {
     if (!config.username) {
         throw new Error('Username not provided!')
     }
+
     if (!config.password) {
         throw new Error('Password not provided!')
     }
-    if (!config.eventsToInclude) {
-        throw new Error('No events to include!')
+}
+
+const callSalesforce = async ({
+    host,
+    sink,
+    token,
+    event,
+    logger,
+}: {
+    host: string
+    sink: EventSink
+    token: string
+    event: PluginEvent
+    logger: Logger
+}): Promise<void> => {
+    const response = await fetch(`${host}/${sink.salesforcePath}`, {
+        method: sink.method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(getProperties(event, sink.propertiesToInclude)),
+    })
+
+    const isOk = await statusOk(response, logger)
+    if (!isOk) {
+        throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
     }
 }
 
@@ -86,18 +165,39 @@ export async function sendEventToSalesforce(
 
         global.logger.debug('processing event: ', event?.event)
 
-        const properties = getProperties(event, config.propertiesToInclude)
+        const eventMapping = parseEventSinkConfig(config)
 
-        const response = await fetch(`${config.salesforceHost}/${config.eventPath}`, {
-            method: config.eventMethodType,
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(properties),
-        })
+        let eventSink: EventSink
+        if (eventMapping !== null) {
+            const hasMappingForThisEvent = event.event in eventMapping
 
-        const isOk = await statusOk(response, global.logger)
-        if (!isOk) {
-            throw new Error(`Not a 200 response from event hook ${response.status}. Response: ${response}`)
+            if (!hasMappingForThisEvent || !event.properties) {
+                return
+            }
+
+            eventSink = eventMapping[event.event]
+            global.logger.debug('v2: processing event: ', event?.event, ' with sink ', eventSink)
+        } else {
+            const eventsToInclude = config.eventsToInclude.split(',').map((e) => e.trim())
+            if (!eventsToInclude.includes(event.event)) {
+                return
+            }
+
+            eventSink = {
+                salesforcePath: config.eventPath,
+                method: config.eventMethodType,
+                propertiesToInclude: config.propertiesToInclude,
+            }
+            global.logger.debug('v1: processing event: ', event?.event, ' with sink ', eventSink)
         }
+
+        return callSalesforce({
+            host: config.salesforceHost,
+            sink: eventSink,
+            token,
+            event,
+            logger: global.logger,
+        })
     } catch (error) {
         meta.global.logger.error('error while sending event to salesforce. event: ', event, ' the error was ', error)
         throw error
@@ -130,7 +230,9 @@ async function generateAndSetToken({ config, cache, global }: SalesforcePluginMe
         formBody.push(encodedKey + '=' + encodedValue)
     }
 
-    const response = await fetch(`${config.salesforceHost}/services/oauth2/token`, {
+    const tokenURL = `${config.salesforceHost}/services/oauth2/token`
+    global.logger.debug('getting token from ', tokenURL)
+    const response = await fetch(tokenURL, {
         method: 'post',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formBody.join('&'),
@@ -144,7 +246,7 @@ async function generateAndSetToken({ config, cache, global }: SalesforcePluginMe
     return body.access_token
 }
 
-export async function setupPlugin(meta: SalesforcePluginMeta) {
+export async function setupPlugin(meta: SalesforcePluginMeta): Promise<void> {
     const { global } = meta
 
     const debugLoggingOn = meta.config.debugLogging === 'debug logging on'
@@ -170,14 +272,22 @@ export async function setupPlugin(meta: SalesforcePluginMeta) {
     })
 }
 
-export async function onEvent(event: PluginEvent, { global, config }: SalesforcePluginMeta) {
+function configToMatchingEvents(config: SalesforcePluginConfig): string[] {
+    if (config.eventsToInclude) {
+        return config.eventsToInclude.split(',').map((e: string) => e.trim())
+    } else {
+        return Object.keys(JSON.parse(config.eventEndpointMapping)).map((e: string) => e.trim())
+    }
+    return []
+}
+
+export async function onEvent(event: PluginEvent, { global, config }: SalesforcePluginMeta): Promise<void> {
     if (!global.buffer) {
-        throw new Error(`there is no buffer. setup must have failed, cannot process event: ${event.event}`)
+        throw new Error(`There is no buffer. Setup must have failed, cannot process event: ${event.event}`)
     }
 
-    const types = (config.eventsToInclude || '').split(',')
-
-    if (!types.includes(event.event) || !event.properties) {
+    const eventsToMatch = configToMatchingEvents(config)
+    if (!eventsToMatch.includes(event.event)) {
         return
     }
 
@@ -185,7 +295,7 @@ export async function onEvent(event: PluginEvent, { global, config }: Salesforce
     global.buffer.add(event, eventSize)
 }
 
-export function teardownPlugin({ global }: SalesforcePluginMeta) {
+export function teardownPlugin({ global }: SalesforcePluginMeta): void {
     global.buffer.flush()
 }
 
